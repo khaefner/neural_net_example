@@ -131,6 +131,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const btnInit = document.getElementById('btn-init');
     const btnTrain = document.getElementById('btn-train-step');
+    const btnAutoPlay = document.getElementById('btn-autoplay');
+    const delayInput = document.getElementById('delay-input');
     const btnReset = document.getElementById('btn-reset');
     const statusText = document.getElementById('status-text');
 
@@ -142,6 +144,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let currentTargets = [];
     let isInitialized = false;
     let stepCount = 0;
+    let isAutoPlaying = false;
 
     // --- 1. Setup UI Elements ---
 
@@ -490,12 +493,37 @@ document.addEventListener('DOMContentLoaded', () => {
         isInitialized = true;
         statusText.innerText = "Initialization complete. Ready to train.";
         btnTrain.disabled = false;
+        btnAutoPlay.disabled = false;
         btnReset.disabled = false;
+    }
+
+    function toggleAutoPlay() {
+        if (!isInitialized) return;
+        isAutoPlaying = !isAutoPlaying;
+
+        if (isAutoPlaying) {
+            btnAutoPlay.innerText = "Stop Auto Play";
+            btnAutoPlay.classList.add('active-play');
+            btnInit.disabled = true;
+            btnTrain.disabled = true;
+            btnReset.disabled = true;
+            delayInput.disabled = true;
+            runTrainStep();
+        } else {
+            btnAutoPlay.innerText = "Auto Play";
+            btnAutoPlay.classList.remove('active-play');
+            btnInit.disabled = false;
+            btnTrain.disabled = false;
+            btnReset.disabled = false;
+            delayInput.disabled = false;
+            statusText.innerText = `Auto play stopped. Step ${stepCount} Complete.`;
+        }
     }
 
     async function runTrainStep() {
         if (!isInitialized) return;
         btnTrain.disabled = true;
+        btnInit.disabled = true;
         btnReset.disabled = true;
         stepCount++;
 
@@ -610,15 +638,28 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById(`dial-val-${j}`).innerText = '0.00';
         }
 
-        statusText.innerText = `Step ${stepCount} Complete. Ready for next step.`;
-        btnTrain.disabled = false;
-        btnReset.disabled = false;
+        if (isAutoPlaying) {
+            let delayMs = parseInt(delayInput.value) || 0;
+            statusText.innerText = `Step ${stepCount} Complete. Waiting ${delayMs}ms before next step...`;
+            await new Promise(r => setTimeout(r, delayMs));
+
+            // Re-check after delay in case user clicked stop during wait
+            if (isAutoPlaying) {
+                runTrainStep();
+            }
+        } else {
+            statusText.innerText = `Step ${stepCount} Complete. Ready for next step.`;
+            btnInit.disabled = false;
+            btnTrain.disabled = false;
+            btnReset.disabled = false;
+        }
     }
 
     // --- 5. Event Listeners ---
 
     btnInit.addEventListener('click', initializeNetwork);
     btnTrain.addEventListener('click', runTrainStep);
+    btnAutoPlay.addEventListener('click', toggleAutoPlay);
 
     btnReset.addEventListener('click', () => {
         nn = new NeuralNetwork(NUM_INPUTS, NUM_OUTPUTS);
@@ -627,9 +668,15 @@ document.addEventListener('DOMContentLoaded', () => {
         currentTargets = [];
         isInitialized = false;
         stepCount = 0;
+        isAutoPlaying = false;
 
         btnInit.disabled = false;
         btnTrain.disabled = true;
+        btnAutoPlay.disabled = true;
+        btnAutoPlay.innerText = "Auto Play";
+        btnAutoPlay.classList.remove('active-play');
+        delayInput.disabled = false;
+
         statusText.innerText = "Network Reset. Click 'Initialize Weights' to start.";
         setupUI();
     });

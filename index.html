@@ -14,7 +14,10 @@
             <h1>Feed-Forward & Backpropagation Visualization</h1>
             <div class="controls">
                 <button id="btn-init">Initialize Weights</button>
-                <button id="btn-train-step" disabled>Train Step (Forward + Backprop)</button>
+                <button id="btn-train-step" disabled>Train Step</button>
+                <button id="btn-autoplay" disabled>Auto Play</button>
+                <label for="delay-input" style="color: #bbb; font-size: 14px;">Delay (ms):</label>
+                <input type="number" id="delay-input" value="1000" min="0" step="100" style="width: 70px; padding: 5px; border-radius: 5px; border: 1px solid #555; background: #333; color: #fff;">
                 <button id="btn-reset">Reset</button>
                 <div class="status-panel">Status: <span id="status-text">Click 'Initialize Weights' to begin.</span></div>
             </div>
