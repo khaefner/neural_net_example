@@ -18,7 +18,7 @@ body {
 
 .app-container {
     width: 100%;
-    max-width: 1400px;
+    max-width: 1800px;
     display: flex;
     flex-direction: column;
     gap: 20px;
@@ -71,17 +71,24 @@ button:disabled {
     color: #ff9800;
 }
 
+.main-content {
+    display: flex;
+    gap: 20px;
+    align-items: flex-start;
+}
+
 /* Network Visualization Container */
 .network-container {
+    flex: 3;
     position: relative;
     display: flex;
     justify-content: space-between;
-    align-items: center;
+    align-items: stretch;
     background-color: #1a1a1a;
-    padding: 40px;
+    padding: 30px;
     border-radius: 15px;
     box-shadow: 0 10px 30px rgba(0,0,0,0.5);
-    min-height: 600px;
+    min-height: 800px;
 }
 
 .layer {
@@ -92,35 +99,46 @@ button:disabled {
 }
 
 .layer-title {
-    margin-bottom: 15px;
-    font-size: 18px;
+    margin-bottom: 20px;
+    font-size: 16px;
     color: #aaa;
     text-transform: uppercase;
     letter-spacing: 1px;
+    text-align: center;
 }
 
-/* Inputs */
-.matrix-grid {
-    display: grid;
-    grid-template-columns: repeat(4, 50px);
-    grid-template-rows: repeat(4, 50px);
+/* Input Queue */
+.input-queue {
+    display: flex;
     gap: 10px;
     background-color: #2a2a2a;
     padding: 15px;
     border-radius: 10px;
 }
 
+.input-column {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+/* Fading history */
+.input-column.history-3 { opacity: 0.15; }
+.input-column.history-2 { opacity: 0.35; }
+.input-column.history-1 { opacity: 0.65; }
+.input-column.current { opacity: 1; border: 1px solid #4CAF50; border-radius: 8px; padding: 2px;}
+
 .input-node {
-    width: 50px;
-    height: 50px;
+    width: 30px;
+    height: 30px;
     background-color: #333;
-    border: 2px solid #555;
-    border-radius: 8px;
+    border: 1px solid #555;
+    border-radius: 5px;
     display: flex;
     justify-content: center;
     align-items: center;
     font-weight: bold;
-    font-size: 14px;
+    font-size: 12px;
     color: #fff;
     transition: all 0.3s ease;
 }
@@ -128,123 +146,224 @@ button:disabled {
 .input-node.active {
     background-color: #2196F3;
     border-color: #64b5f6;
-    box-shadow: 0 0 15px #2196F3;
+    box-shadow: 0 0 10px #2196F3;
 }
 
-/* Weights */
+/* Weights - Horizontal Equalizers */
 .sliders-container {
     display: flex;
     flex-direction: column;
-    gap: 30px;
+    gap: 12px; /* Matches input node spacing */
     background-color: #2a2a2a;
-    padding: 20px;
+    padding: 15px;
     border-radius: 10px;
+    width: 350px;
 }
 
 .slider-row {
     display: flex;
-    gap: 5px;
+    align-items: center;
+    gap: 10px;
     position: relative;
+    height: 30px; /* Matches input node height */
 }
 
 .slider-row::before {
-    content: attr(data-label);
-    position: absolute;
-    left: -40px;
-    top: 50%;
-    transform: translateY(-50%);
+    content: attr(data-in-label);
     color: #bbb;
-    font-size: 14px;
-    font-weight: bold;
+    font-size: 12px;
+    width: 30px;
+    text-align: right;
 }
 
 .slider-wrapper {
     display: flex;
-    flex-direction: column;
     align-items: center;
-    width: 25px;
+    flex: 1;
+    position: relative;
+    height: 100%;
 }
 
-/* Custom CSS Equalizer Slider */
+/* Horizontal Track */
 .slider-track {
-    width: 8px;
-    height: 80px;
+    width: 100%;
+    height: 8px;
     background-color: #444;
     border-radius: 4px;
     position: relative;
     overflow: hidden;
 }
 
+/* Horizontal Fill */
 .slider-fill {
     position: absolute;
-    bottom: 0;
     left: 0;
-    width: 100%;
-    height: 50%; /* Set via JS */
-    background: linear-gradient(to top, #ffeb3b, #f44336);
-    transition: height 0.5s ease-in-out;
+    top: 0;
+    height: 100%;
+    width: 50%; /* Set via JS */
+    background: linear-gradient(to right, #ffeb3b, #f44336);
+    transition: width 0.3s ease-out;
 }
 
+/* Horizontal Thumb */
 .slider-thumb {
-    width: 16px;
-    height: 8px;
+    width: 8px;
+    height: 16px;
     background-color: #fff;
     border-radius: 2px;
     position: absolute;
-    bottom: 50%; /* Set via JS, slightly offset to match fill */
-    left: 50%;
-    transform: translateX(-50%) translateY(50%);
+    top: 50%;
+    left: 50%; /* Set via JS */
+    transform: translateX(-50%) translateY(-50%);
     box-shadow: 0 0 5px rgba(0,0,0,0.8);
-    transition: bottom 0.5s ease-in-out;
+    transition: left 0.3s ease-out;
     z-index: 2;
 }
 
 .slider-value-text {
-    font-size: 10px;
-    color: #888;
-    margin-top: 5px;
+    position: absolute;
+    font-size: 9px;
+    color: #fff;
+    text-shadow: 1px 1px 2px #000;
+    top: -12px;
+    left: 50%; /* JS will update this to track thumb */
+    transform: translateX(-50%);
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.2s;
 }
 
-/* Outputs */
+.slider-wrapper:hover .slider-value-text {
+    opacity: 1;
+}
+
+/* Outputs & Sliding Targets */
 .output-nodes {
     display: flex;
     flex-direction: column;
-    gap: 40px;
+    justify-content: space-around;
+    height: 100%;
+    padding: 0 20px;
     background-color: #2a2a2a;
-    padding: 20px;
     border-radius: 10px;
 }
 
-.output-node {
+.output-container {
+    display: flex;
+    align-items: center;
+    gap: 30px;
+}
+
+/* ReLU Dial */
+.dial-container {
+    position: relative;
     width: 60px;
     height: 60px;
-    background-color: #333;
+}
+
+.dial-bg {
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    background: conic-gradient(#555 0%, #333 0%);
     border: 3px solid #555;
+    position: absolute;
+    top: 0;
+    left: 0;
+    transition: background 0.5s;
+}
+
+.dial-bg.active {
+    border-color: #9C27B0;
+    box-shadow: 0 0 15px #9C27B0;
+}
+
+.dial-center {
+    width: 40px;
+    height: 40px;
+    background-color: #2a2a2a;
+    border-radius: 50%;
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-size: 12px;
+    font-weight: bold;
+    color: #fff;
+    z-index: 2;
+}
+
+/* Target Track */
+.target-track {
+    width: 50px;
+    height: 150px; /* Space for targets to slide in/out */
+    background-color: #1e1e1e;
+    border: 1px solid #444;
+    border-radius: 8px;
+    position: relative;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.target-label {
+    position: absolute;
+    top: -20px;
+    font-size: 11px;
+    color: #888;
+}
+
+.target-item {
+    width: 40px;
+    height: 40px;
+    background-color: #ff9800;
+    color: #000;
+    font-weight: bold;
     border-radius: 50%;
     display: flex;
     justify-content: center;
     align-items: center;
-    font-weight: bold;
-    font-size: 16px;
-    position: relative;
-    transition: all 0.3s ease;
-}
-
-.output-node.active {
-    background-color: #9C27B0;
-    border-color: #E1BEE7;
-    box-shadow: 0 0 20px #9C27B0;
-}
-
-.output-node::after {
-    content: attr(data-target-label);
     position: absolute;
-    right: -80px;
-    width: 70px;
-    color: #ff9800;
     font-size: 14px;
-    white-space: nowrap;
+    transition: transform 1s ease-in-out, opacity 1s ease-in-out;
 }
+
+/* Initial state (bottom, hidden) */
+.target-item.incoming {
+    transform: translateY(160px);
+    opacity: 0;
+}
+
+/* Active state (center) */
+.target-item.active {
+    transform: translateY(55px);
+    opacity: 1;
+}
+
+/* Exiting state (top, hidden) */
+.target-item.outgoing {
+    transform: translateY(-50px);
+    opacity: 0;
+}
+
+/* Error text next to target */
+.error-text {
+    color: #f44336;
+    font-size: 14px;
+    font-weight: bold;
+    width: 60px;
+    text-align: left;
+    opacity: 0;
+    transition: opacity 0.3s;
+}
+
+.error-text.show {
+    opacity: 1;
+}
+
 
 /* SVG Connections */
 .connections-svg, .connections-svg-out {
@@ -261,55 +380,44 @@ button:disabled {
     stroke: #444;
     stroke-width: 1;
     fill: none;
-    transition: stroke 0.5s ease, stroke-width 0.5s ease;
+    transition: stroke 0.5s ease, stroke-width 0.3s ease;
 }
 
 .connection-line.forward {
-    stroke: rgba(33, 150, 243, 0.5); /* Blue-ish */
+    stroke: rgba(33, 150, 243, 0.6);
 }
 
 .connection-line.backward {
-    stroke: rgba(244, 67, 54, 0.8); /* Red-ish for error backflow */
-    animation: pulseBack 1s infinite alternate;
+    stroke: rgba(244, 67, 54, 0.8);
 }
 
-@keyframes pulseBack {
-    from { stroke-opacity: 0.4; }
-    to { stroke-opacity: 1; box-shadow: 0 0 10px red;} /* svg doesn't support box-shadow directly, but animation works on opacity */
+/* Randomize Scramble Animation */
+@keyframes scramble {
+    0% { filter: hue-rotate(0deg); opacity: 0.8; }
+    50% { filter: hue-rotate(180deg); opacity: 1; text-shadow: 0 0 10px #fff;}
+    100% { filter: hue-rotate(360deg); opacity: 0.8; }
 }
 
-/* Info Panel */
-.info-panel {
-    display: flex;
-    justify-content: center;
-    gap: 50px;
-    width: 100%;
-    max-width: 1400px;
-    background-color: #1e1e1e;
+.scrambling {
+    animation: scramble 0.1s infinite;
+}
+
+/* Side Panel (Chart) */
+.side-panel {
+    flex: 1;
+    background-color: #1a1a1a;
     padding: 20px;
-    border-radius: 10px;
-    margin-top: 10px;
+    border-radius: 15px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+    min-width: 350px;
 }
 
-.info-box {
-    text-align: center;
+.chart-box {
+    width: 100%;
 }
 
-.info-box h3 {
+.chart-box h3 {
     color: #aaa;
-    margin-bottom: 10px;
-}
-
-.info-values-grid {
-    display: flex;
-    gap: 20px;
-}
-
-.info-val {
-    background-color: #333;
-    padding: 10px;
-    border-radius: 5px;
-    min-width: 80px;
-    font-family: monospace;
-    font-size: 16px;
+    margin-bottom: 15px;
+    text-align: center;
 }

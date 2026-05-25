@@ -5,94 +5,111 @@ class NeuralNetwork {
         this.numInputs = numInputs;
         this.numOutputs = numOutputs;
 
-        // Weights matrix: [output_index][input_index]
-        // e.g., weights[0] is an array of 16 weights connecting to Output 0
+        // Weights matrix: [input_index][output_index]
+        // This makes it easier to map to 16 rows x 4 cols UI
         this.weights = [];
         this.biases = [];
-        this.learningRate = 0.5;
+        this.learningRate = 0.05;
 
-        // Initialize with random weights between -1 and 1
-        for (let i = 0; i < numOutputs; i++) {
-            let row = [];
-            for (let j = 0; j < numInputs; j++) {
-                row.push(Math.random() * 2 - 1);
-            }
-            this.weights.push(row);
-            this.biases.push(Math.random() * 2 - 1);
+        // Initialize empty, user will trigger init
+        for (let i = 0; i < numInputs; i++) {
+            this.weights.push(new Array(numOutputs).fill(0));
         }
+        this.biases = new Array(numOutputs).fill(0);
 
-        // Store last forward pass data for backprop
         this.lastInputs = [];
         this.lastOutputs = [];
+        this.lossHistory = [];
     }
 
-    // Sigmoid activation function
-    sigmoid(x) {
-        return 1 / (1 + Math.exp(-x));
+    initializeRandom() {
+        for (let i = 0; i < this.numInputs; i++) {
+            for (let j = 0; j < this.numOutputs; j++) {
+                // Initialize between -1 and 1
+                this.weights[i][j] = Math.random() * 2 - 1;
+            }
+        }
+        for (let j = 0; j < this.numOutputs; j++) {
+            this.biases[j] = Math.random() * 2 - 1;
+        }
     }
 
-    // Derivative of sigmoid
-    sigmoidDerivative(x) {
-        return x * (1 - x); // Assuming x is already passed through sigmoid
+    // ReLU activation
+    relu(x) {
+        return Math.max(0, x);
+    }
+
+    // Derivative of ReLU
+    reluDerivative(x) {
+        return x > 0 ? 1 : 0;
     }
 
     forwardPass(inputs) {
         this.lastInputs = [...inputs];
         let outputs = [];
 
-        for (let i = 0; i < this.numOutputs; i++) {
-            let sum = this.biases[i];
-            for (let j = 0; j < this.numInputs; j++) {
-                sum += inputs[j] * this.weights[i][j];
+        for (let j = 0; j < this.numOutputs; j++) {
+            let sum = this.biases[j];
+            for (let i = 0; i < this.numInputs; i++) {
+                sum += inputs[i] * this.weights[i][j];
             }
-            outputs.push(this.sigmoid(sum));
+            // Apply ReLU
+            outputs.push(this.relu(sum));
         }
 
         this.lastOutputs = [...outputs];
         return outputs;
     }
 
-    // Returns the calculated errors and weight updates (gradients) without applying them immediately
-    // so we can animate them
     calculateBackpropUpdates(targets) {
         let errors = [];
         let deltas = [];
-        let weightUpdates = []; // [output_index][input_index]
+        let weightUpdates = []; // [input_index][output_index]
+        let loss = 0;
 
-        // Calculate errors and deltas for outputs
-        for (let i = 0; i < this.numOutputs; i++) {
-            let error = targets[i] - this.lastOutputs[i];
+        // Calculate errors, deltas, and MSE loss
+        for (let j = 0; j < this.numOutputs; j++) {
+            let error = targets[j] - this.lastOutputs[j];
             errors.push(error);
-            let delta = error * this.sigmoidDerivative(this.lastOutputs[i]);
+            loss += error * error;
+
+            // Note: error is (target - output), we want to maximize it (gradient descent subtracts grad)
+            // Or if standard grad descent: Delta = -error * deriv
+            // To keep update = learningRate * delta * input, we use delta = error * deriv
+            let delta = error * this.reluDerivative(this.lastOutputs[j]);
             deltas.push(delta);
         }
 
-        // Calculate weight updates
-        for (let i = 0; i < this.numOutputs; i++) {
-            let rowUpdates = [];
-            for (let j = 0; j < this.numInputs; j++) {
-                // Update = learning_rate * delta * input
-                let update = this.learningRate * deltas[i] * this.lastInputs[j];
-                rowUpdates.push(update);
-            }
-            weightUpdates.push(rowUpdates);
+        // MSE
+        loss = loss / this.numOutputs;
+        this.lossHistory.push(loss);
+
+        // Initialize weight updates array structure
+        for (let i = 0; i < this.numInputs; i++) {
+            weightUpdates.push(new Array(this.numOutputs).fill(0));
         }
 
-        return { errors, weightUpdates };
+        // Calculate weight updates
+        for (let i = 0; i < this.numInputs; i++) {
+            for (let j = 0; j < this.numOutputs; j++) {
+                weightUpdates[i][j] = this.learningRate * deltas[j] * this.lastInputs[i];
+            }
+        }
+
+        return { errors, weightUpdates, loss };
     }
 
     applyUpdates(weightUpdates) {
-        for (let i = 0; i < this.numOutputs; i++) {
-            for (let j = 0; j < this.numInputs; j++) {
+        for (let i = 0; i < this.numInputs; i++) {
+            for (let j = 0; j < this.numOutputs; j++) {
                 this.weights[i][j] += weightUpdates[i][j];
-                // Clamp weights for visual stability between -2 and 2
+                // Clamp weights for UI display [-2, 2]
                 this.weights[i][j] = Math.max(-2, Math.min(2, this.weights[i][j]));
             }
         }
     }
 }
 
-// Ensure NN logic exists before UI code runs.
 window.NeuralNetwork = NeuralNetwork;
 
 // --- UI and Animation Logic ---
@@ -105,58 +122,61 @@ document.addEventListener('DOMContentLoaded', () => {
     let nn = new NeuralNetwork(NUM_INPUTS, NUM_OUTPUTS);
 
     // DOM Elements
-    const inputMatrix = document.getElementById('input-matrix');
+    const inputQueueContainer = document.getElementById('input-queue');
     const slidersContainer = document.getElementById('sliders-container');
     const outputNodesContainer = document.getElementById('output-nodes');
 
     const svgConnections = document.getElementById('connections-svg');
     const svgConnectionsOut = document.getElementById('connections-svg-out');
 
-    const btnForward = document.getElementById('btn-forward');
-    const btnBackprop = document.getElementById('btn-backprop');
+    const btnInit = document.getElementById('btn-init');
+    const btnTrain = document.getElementById('btn-train-step');
     const btnReset = document.getElementById('btn-reset');
     const statusText = document.getElementById('status-text');
 
-    const targetValuesContainer = document.getElementById('target-values');
-    const errorValuesContainer = document.getElementById('error-values');
+    let lossChart;
 
     // State
+    let inputHistory = []; // Array of arrays (16 values each)
     let currentInputs = [];
-    let currentTargets = [0.9, 0.1, 0.8, 0.2]; // Predefined targets for demonstration
+    let currentTargets = [];
+    let isInitialized = false;
+    let stepCount = 0;
 
     // --- 1. Setup UI Elements ---
 
     function setupUI() {
         // Clear containers
-        inputMatrix.innerHTML = '';
+        inputQueueContainer.innerHTML = '';
         slidersContainer.innerHTML = '';
         outputNodesContainer.innerHTML = '';
         svgConnections.innerHTML = '';
         svgConnectionsOut.innerHTML = '';
-        targetValuesContainer.innerHTML = '';
-        errorValuesContainer.innerHTML = '';
 
-        // Generate 16 Inputs
-        for (let i = 0; i < NUM_INPUTS; i++) {
-            let node = document.createElement('div');
-            node.className = 'input-node';
-            node.id = `input-${i}`;
-            // Random binary input for demo
-            let val = Math.random() > 0.5 ? 1 : 0;
-            currentInputs.push(val);
-            node.innerText = val;
-            if (val === 1) node.classList.add('active');
-            inputMatrix.appendChild(node);
+        // Generate Input Queue (4 columns: history-3, history-2, history-1, current)
+        for (let col = 3; col >= 0; col--) {
+            let colDiv = document.createElement('div');
+            colDiv.className = `input-column ${col === 0 ? 'current' : `history-${col}`}`;
+            colDiv.id = `input-col-${col}`;
+
+            for (let i = 0; i < NUM_INPUTS; i++) {
+                let node = document.createElement('div');
+                node.className = 'input-node';
+                node.id = `input-${col}-${i}`;
+                node.innerText = '0';
+                colDiv.appendChild(node);
+            }
+            inputQueueContainer.appendChild(colDiv);
         }
 
-        // Generate 4 Rows of 16 Sliders (Weights)
-        for (let i = 0; i < NUM_OUTPUTS; i++) {
+        // Generate Weights (16 rows, 4 horizontal sliders each)
+        for (let i = 0; i < NUM_INPUTS; i++) {
             let row = document.createElement('div');
             row.className = 'slider-row';
-            row.dataset.label = `Out ${i+1}`;
+            row.dataset.inLabel = `I${i}`;
             row.id = `slider-row-${i}`;
 
-            for (let j = 0; j < NUM_INPUTS; j++) {
+            for (let j = 0; j < NUM_OUTPUTS; j++) {
                 let wrapper = document.createElement('div');
                 wrapper.className = 'slider-wrapper';
 
@@ -171,13 +191,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 thumb.className = 'slider-thumb';
                 thumb.id = `slider-thumb-${i}-${j}`;
 
-                track.appendChild(fill);
-                track.appendChild(thumb);
-
                 let valText = document.createElement('div');
                 valText.className = 'slider-value-text';
                 valText.id = `slider-val-${i}-${j}`;
 
+                track.appendChild(fill);
+                track.appendChild(thumb);
                 wrapper.appendChild(track);
                 wrapper.appendChild(valText);
                 row.appendChild(wrapper);
@@ -185,51 +204,112 @@ document.addEventListener('DOMContentLoaded', () => {
             slidersContainer.appendChild(row);
         }
 
-        // Generate 4 Outputs
-        for (let i = 0; i < NUM_OUTPUTS; i++) {
-            let node = document.createElement('div');
-            node.className = 'output-node';
-            node.id = `output-${i}`;
-            node.innerText = '0.00';
-            node.dataset.targetLabel = `Target: ${currentTargets[i]}`;
-            outputNodesContainer.appendChild(node);
+        // Generate Outputs (ReLU Dials + Target Tracks)
+        for (let j = 0; j < NUM_OUTPUTS; j++) {
+            let outContainer = document.createElement('div');
+            outContainer.className = 'output-container';
+            outContainer.id = `output-container-${j}`;
 
-            // Add to info panel
-            let targetDiv = document.createElement('div');
-            targetDiv.className = 'info-val';
-            targetDiv.innerText = `O${i+1}: ${currentTargets[i]}`;
-            targetValuesContainer.appendChild(targetDiv);
+            // ReLU Dial
+            let dialContainer = document.createElement('div');
+            dialContainer.className = 'dial-container';
+            dialContainer.id = `dial-container-${j}`;
 
-            let errorDiv = document.createElement('div');
-            errorDiv.className = 'info-val';
-            errorDiv.id = `error-val-${i}`;
-            errorDiv.innerText = `O${i+1}: -`;
-            errorValuesContainer.appendChild(errorDiv);
+            let dialBg = document.createElement('div');
+            dialBg.className = 'dial-bg';
+            dialBg.id = `dial-bg-${j}`;
+
+            let dialCenter = document.createElement('div');
+            dialCenter.className = 'dial-center';
+            dialCenter.id = `dial-val-${j}`;
+            dialCenter.innerText = '0.00';
+
+            dialContainer.appendChild(dialBg);
+            dialContainer.appendChild(dialCenter);
+
+            // Target Track
+            let targetTrack = document.createElement('div');
+            targetTrack.className = 'target-track';
+            targetTrack.id = `target-track-${j}`;
+
+            let label = document.createElement('div');
+            label.className = 'target-label';
+            label.innerText = `Out ${j}`;
+
+            targetTrack.appendChild(label);
+
+            // Error Text (hidden initially)
+            let errorText = document.createElement('div');
+            errorText.className = 'error-text';
+            errorText.id = `error-text-${j}`;
+
+            outContainer.appendChild(dialContainer);
+            outContainer.appendChild(targetTrack);
+            outContainer.appendChild(errorText);
+
+            outputNodesContainer.appendChild(outContainer);
         }
 
+        setupChart();
         updateSlidersUI();
 
-        // Wait for layout to draw lines
         setTimeout(() => {
             drawConnections();
         }, 100);
     }
 
-    // Update Slider UI based on NN weights
-    function updateSlidersUI() {
-        for (let i = 0; i < NUM_OUTPUTS; i++) {
-            for (let j = 0; j < NUM_INPUTS; j++) {
-                let weight = nn.weights[i][j];
-                // Map weight [-2, 2] to percentage [0%, 100%]
-                let percentage = ((weight + 2) / 4) * 100;
-                // Clamp
-                percentage = Math.max(0, Math.min(100, percentage));
-
-                document.getElementById(`slider-fill-${i}-${j}`).style.height = `${percentage}%`;
-                document.getElementById(`slider-thumb-${i}-${j}`).style.bottom = `${percentage}%`;
-                document.getElementById(`slider-val-${i}-${j}`).innerText = weight.toFixed(2);
+    function setupChart() {
+        const ctx = document.getElementById('lossChart').getContext('2d');
+        if (lossChart) lossChart.destroy();
+        lossChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: [],
+                datasets: [{
+                    label: 'MSE Loss',
+                    data: [],
+                    borderColor: '#f44336',
+                    backgroundColor: 'rgba(244, 67, 54, 0.2)',
+                    borderWidth: 2,
+                    fill: true,
+                    tension: 0.2
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    x: {
+                        ticks: { color: '#aaa' },
+                        grid: { color: '#333' }
+                    },
+                    y: {
+                        beginAtZero: true,
+                        ticks: { color: '#aaa' },
+                        grid: { color: '#333' }
+                    }
+                },
+                plugins: {
+                    legend: { display: false }
+                }
             }
+        });
+    }
+
+    function generateNewDataPair() {
+        // Generate random inputs [0 or 1]
+        let inputs = [];
+        for (let i = 0; i < NUM_INPUTS; i++) {
+            inputs.push(Math.random() > 0.5 ? 1 : 0);
         }
+
+        // Target: simple dummy logic (e.g., target 1 sum of first 4 inputs, normalized)
+        let targets = [];
+        for (let j = 0; j < NUM_OUTPUTS; j++) {
+            // Random target between 0 and 2 for ReLU demonstration
+            targets.push(Math.random() * 2);
+        }
+        return { inputs, targets };
     }
 
     // --- 2. Drawing Connections (Lines) ---
@@ -240,195 +320,320 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const networkRect = document.getElementById('network-container').getBoundingClientRect();
 
-        // Connect Inputs to Sliders
-        for (let i = 0; i < NUM_OUTPUTS; i++) {
-            for (let j = 0; j < NUM_INPUTS; j++) {
-                let inputEl = document.getElementById(`input-${j}`);
-                let sliderEl = document.getElementById(`slider-thumb-${i}-${j}`);
-
-                let inRect = inputEl.getBoundingClientRect();
-                let slRect = sliderEl.getBoundingClientRect();
-
-                // Calculate relative positions
-                let startX = inRect.right - networkRect.left;
-                let startY = inRect.top + inRect.height / 2 - networkRect.top;
-
-                let endX = slRect.left - networkRect.left;
-                let endY = slRect.top + slRect.height / 2 - networkRect.top;
-
-                let line = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-                let d = `M ${startX} ${startY} C ${startX + 50} ${startY}, ${endX - 50} ${endY}, ${endX} ${endY}`;
-
-                line.setAttribute('d', d);
-                line.setAttribute('class', 'connection-line');
-                line.id = `line-in-${i}-${j}`;
-
-                // Initial line width based on absolute weight
-                let weight = Math.abs(nn.weights[i][j]);
-                line.style.strokeWidth = Math.max(0.5, weight * 2) + 'px';
-
-                svgConnections.appendChild(line);
-            }
-        }
-
-        // Connect Sliders to Outputs
-        for (let i = 0; i < NUM_OUTPUTS; i++) {
-            let outEl = document.getElementById(`output-${i}`);
-            let outRect = outEl.getBoundingClientRect();
-            let endX = outRect.left - networkRect.left;
-            let endY = outRect.top + outRect.height / 2 - networkRect.top;
-
-            // Connect from the end of the slider row to the output node
+        // Connect Current Input (col 0) to Weight Rows
+        for (let i = 0; i < NUM_INPUTS; i++) {
+            let inputEl = document.getElementById(`input-0-${i}`);
             let rowEl = document.getElementById(`slider-row-${i}`);
+
+            let inRect = inputEl.getBoundingClientRect();
             let rowRect = rowEl.getBoundingClientRect();
-            let startX = rowRect.right - networkRect.left;
-            let startY = rowRect.top + rowRect.height / 2 - networkRect.top;
+
+            let startX = inRect.right - networkRect.left;
+            let startY = inRect.top + inRect.height / 2 - networkRect.top;
+
+            let endX = rowRect.left - networkRect.left;
+            let endY = rowRect.top + rowRect.height / 2 - networkRect.top;
 
             let line = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-            let d = `M ${startX} ${startY} C ${startX + 50} ${startY}, ${endX - 50} ${endY}, ${endX} ${endY}`;
+            let d = `M ${startX} ${startY} C ${startX + 30} ${startY}, ${endX - 30} ${endY}, ${endX} ${endY}`;
 
             line.setAttribute('d', d);
             line.setAttribute('class', 'connection-line');
-            line.id = `line-out-${i}`;
-            line.style.strokeWidth = '2px';
+            line.id = `line-in-${i}`;
+            line.style.strokeWidth = '1px';
 
-            svgConnectionsOut.appendChild(line);
+            svgConnections.appendChild(line);
+        }
+
+        // Connect Weight Rows to Outputs
+        // We will draw 4 lines from each row, targeting the 4 output dials
+        for (let i = 0; i < NUM_INPUTS; i++) {
+            for (let j = 0; j < NUM_OUTPUTS; j++) {
+                let rowEl = document.getElementById(`slider-row-${i}`);
+                let dialEl = document.getElementById(`dial-container-${j}`);
+
+                let rowRect = rowEl.getBoundingClientRect();
+                let dialRect = dialEl.getBoundingClientRect();
+
+                // Estimate position of the specific slider in the row (roughly dividing row into 4)
+                let sliderWidth = rowRect.width / 4;
+                let startX = rowRect.left + (sliderWidth * j) + (sliderWidth / 2) - networkRect.left;
+                let startY = rowRect.bottom - networkRect.top; // Bottom of row
+
+                let endX = dialRect.left - networkRect.left;
+                let endY = dialRect.top + dialRect.height / 2 - networkRect.top;
+
+                let line = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+
+                // Using a curve that comes from bottom of slider to left of dial
+                let d = `M ${startX} ${startY} C ${startX} ${startY + 50}, ${endX - 50} ${endY}, ${endX} ${endY}`;
+
+                line.setAttribute('d', d);
+                line.setAttribute('class', 'connection-line');
+                line.id = `line-out-${i}-${j}`;
+
+                let weight = Math.abs(nn.weights[i][j]);
+                line.style.strokeWidth = Math.max(0.5, weight * 2) + 'px';
+
+                svgConnectionsOut.appendChild(line);
+            }
         }
     }
 
-    // Resize observer to redraw lines
-    window.addEventListener('resize', () => {
-        drawConnections();
-    });
+    window.addEventListener('resize', drawConnections);
 
-    // --- 3. Animation & Logic ---
+    // --- 3. UI Updates ---
 
-    async function runForwardPass() {
-        btnForward.disabled = true;
-        btnReset.disabled = true;
-        statusText.innerText = "Running Forward Pass...";
+    function updateSlidersUI() {
+        for (let i = 0; i < NUM_INPUTS; i++) {
+            for (let j = 0; j < NUM_OUTPUTS; j++) {
+                let weight = nn.weights[i][j];
+                // Map [-2, 2] to [0%, 100%]
+                let pct = ((weight + 2) / 4) * 100;
+                pct = Math.max(0, Math.min(100, pct));
 
-        // Light up input lines
-        for (let i = 0; i < NUM_OUTPUTS; i++) {
-            for (let j = 0; j < NUM_INPUTS; j++) {
-                if (currentInputs[j] === 1) {
-                    let line = document.getElementById(`line-in-${i}-${j}`);
-                    line.classList.add('forward');
+                document.getElementById(`slider-fill-${i}-${j}`).style.width = `${pct}%`;
+                document.getElementById(`slider-thumb-${i}-${j}`).style.left = `${pct}%`;
+
+                let valText = document.getElementById(`slider-val-${i}-${j}`);
+                valText.innerText = weight.toFixed(2);
+                valText.style.left = `${pct}%`;
+
+                let line = document.getElementById(`line-out-${i}-${j}`);
+                if (line) {
+                    line.style.strokeWidth = Math.max(0.5, Math.abs(weight) * 2) + 'px';
                 }
             }
         }
+    }
 
-        await new Promise(r => setTimeout(r, 800)); // Delay for visual
+    function updateInputQueueUI() {
+        for (let col = 3; col >= 0; col--) {
+            let data = col === 0 ? currentInputs : inputHistory[col - 1];
+            if (!data) continue;
 
-        // Calculate outputs
-        let outputs = nn.forwardPass(currentInputs);
+            for (let i = 0; i < NUM_INPUTS; i++) {
+                let node = document.getElementById(`input-${col}-${i}`);
+                let val = data[i];
+                node.innerText = val;
+                if (val === 1) {
+                    node.classList.add('active');
+                } else {
+                    node.classList.remove('active');
+                }
+            }
+        }
+    }
 
-        // Light up output lines
-        for (let i = 0; i < NUM_OUTPUTS; i++) {
-             document.getElementById(`line-out-${i}`).classList.add('forward');
-             let outNode = document.getElementById(`output-${i}`);
-             outNode.innerText = outputs[i].toFixed(2);
-             outNode.classList.add('active');
+    function setOutputDial(index, value) {
+        let dialBg = document.getElementById(`dial-bg-${index}`);
+        let dialVal = document.getElementById(`dial-val-${index}`);
+
+        dialVal.innerText = value.toFixed(2);
+
+        // Map ReLU output [0, ~2] to a degree [0, 360] for visual
+        let degrees = Math.min(360, (value / 2) * 360);
+        dialBg.style.background = `conic-gradient(#9C27B0 ${degrees}deg, #555 ${degrees}deg)`;
+
+        if (value > 0) {
+            dialBg.classList.add('active');
+        } else {
+            dialBg.classList.remove('active');
+        }
+    }
+
+    function updateChart() {
+        lossChart.data.labels.push(stepCount);
+        lossChart.data.datasets[0].data.push(nn.lossHistory[nn.lossHistory.length - 1]);
+        lossChart.update();
+    }
+
+    // --- 4. Animations ---
+
+    async function initializeNetwork() {
+        btnInit.disabled = true;
+        btnTrain.disabled = true;
+        btnReset.disabled = true;
+        statusText.innerText = "Initializing random weights...";
+
+        // Add scrambling class to UI
+        slidersContainer.classList.add('scrambling');
+        outputNodesContainer.classList.add('scrambling');
+
+        // Visually rapid update values
+        for (let t = 0; t < 20; t++) {
+            for (let i = 0; i < NUM_INPUTS; i++) {
+                for (let j = 0; j < NUM_OUTPUTS; j++) {
+                    let rPct = Math.random() * 100;
+                    document.getElementById(`slider-fill-${i}-${j}`).style.width = `${rPct}%`;
+                    document.getElementById(`slider-thumb-${i}-${j}`).style.left = `${rPct}%`;
+                }
+            }
+            await new Promise(r => setTimeout(r, 50));
+        }
+
+        slidersContainer.classList.remove('scrambling');
+        outputNodesContainer.classList.remove('scrambling');
+
+        // Actually initialize the logic
+        nn.initializeRandom();
+        updateSlidersUI();
+
+        // Initialize history
+        inputHistory = [new Array(16).fill(0), new Array(16).fill(0), new Array(16).fill(0)];
+        let initData = generateNewDataPair();
+        currentInputs = initData.inputs;
+        currentTargets = initData.targets;
+
+        updateInputQueueUI();
+
+        isInitialized = true;
+        statusText.innerText = "Initialization complete. Ready to train.";
+        btnTrain.disabled = false;
+        btnReset.disabled = false;
+    }
+
+    async function runTrainStep() {
+        if (!isInitialized) return;
+        btnTrain.disabled = true;
+        btnReset.disabled = true;
+        stepCount++;
+
+        // 1. Shift Queue & Slide Targets
+        statusText.innerText = "Step " + stepCount + ": Loading inputs & targets...";
+        inputHistory.unshift([...currentInputs]);
+        if (inputHistory.length > 3) inputHistory.pop();
+
+        let newData = generateNewDataPair();
+        currentInputs = newData.inputs;
+        let newTargets = newData.targets;
+
+        updateInputQueueUI();
+
+        // Animate Targets
+        let targetElements = [];
+        for (let j = 0; j < NUM_OUTPUTS; j++) {
+            let track = document.getElementById(`target-track-${j}`);
+
+            // Create new incoming target
+            let newTargetEl = document.createElement('div');
+            newTargetEl.className = 'target-item incoming';
+            newTargetEl.innerText = newTargets[j].toFixed(2);
+            track.appendChild(newTargetEl);
+            targetElements.push(newTargetEl);
+
+            // Move existing to outgoing
+            let existing = track.querySelectorAll('.target-item.active');
+            existing.forEach(el => {
+                el.classList.remove('active');
+                el.classList.add('outgoing');
+                setTimeout(() => el.remove(), 1000);
+            });
+        }
+
+        // Trigger CSS transition
+        await new Promise(r => setTimeout(r, 50));
+        targetElements.forEach(el => {
+            el.classList.remove('incoming');
+            el.classList.add('active');
+        });
+
+        currentTargets = newTargets;
+        await new Promise(r => setTimeout(r, 1000));
+
+        // 2. Forward Pass
+        statusText.innerText = "Forward Pass (ReLU)...";
+        for (let i = 0; i < NUM_INPUTS; i++) {
+            if (currentInputs[i] === 1) {
+                document.getElementById(`line-in-${i}`).classList.add('forward');
+            }
         }
 
         await new Promise(r => setTimeout(r, 500));
 
-        statusText.innerText = "Forward Pass Complete. Ready for Backprop.";
-        btnBackprop.disabled = false;
-        btnReset.disabled = false;
-    }
+        let outputs = nn.forwardPass(currentInputs);
 
-    async function runBackprop() {
-        btnForward.disabled = true;
-        btnBackprop.disabled = true;
-        btnReset.disabled = true;
-        statusText.innerText = "Calculating Error...";
-
-        let { errors, weightUpdates } = nn.calculateBackpropUpdates(currentTargets);
-
-        // 1. Show Errors at outputs
-        for (let i = 0; i < NUM_OUTPUTS; i++) {
-             let outNode = document.getElementById(`output-${i}`);
-             outNode.style.backgroundColor = '#f44336'; // Red for error
-             outNode.style.borderColor = '#ffcdd2';
-             outNode.innerText = `Err: ${errors[i].toFixed(2)}`;
-
-             document.getElementById(`error-val-${i}`).innerText = `O${i+1}: ${errors[i].toFixed(4)}`;
-        }
-
-        await new Promise(r => setTimeout(r, 1000));
-
-        statusText.innerText = "Backpropagating Error...";
-
-        // 2. Animate backward lines
-        for (let i = 0; i < NUM_OUTPUTS; i++) {
-            document.getElementById(`line-out-${i}`).classList.remove('forward');
-            document.getElementById(`line-out-${i}`).classList.add('backward');
-
-            for (let j = 0; j < NUM_INPUTS; j++) {
-                let line = document.getElementById(`line-in-${i}-${j}`);
-                line.classList.remove('forward');
-                // Only show significant backflow
-                if (Math.abs(weightUpdates[i][j]) > 0.01) {
-                    line.classList.add('backward');
+        for (let j = 0; j < NUM_OUTPUTS; j++) {
+            setOutputDial(j, outputs[j]);
+            for (let i = 0; i < NUM_INPUTS; i++) {
+                if (currentInputs[i] === 1) {
+                   document.getElementById(`line-out-${i}-${j}`).classList.add('forward');
                 }
             }
         }
 
-        await new Promise(r => setTimeout(r, 1500));
+        await new Promise(r => setTimeout(r, 1000));
 
-        statusText.innerText = "Updating Weights (Sliders)...";
+        // 3. Backpropagate
+        statusText.innerText = "Calculating Error & Backpropagating...";
+        let { errors, weightUpdates, loss } = nn.calculateBackpropUpdates(currentTargets);
 
-        // 3. Apply updates to NN logic
-        nn.applyUpdates(weightUpdates);
+        // Show errors
+        for (let j = 0; j < NUM_OUTPUTS; j++) {
+            let errText = document.getElementById(`error-text-${j}`);
+            errText.innerText = `E: ${errors[j].toFixed(2)}`;
+            errText.classList.add('show');
+        }
 
-        // 4. Update Sliders UI and Line Widths
-        updateSlidersUI();
+        await new Promise(r => setTimeout(r, 800));
 
-        for (let i = 0; i < NUM_OUTPUTS; i++) {
-            for (let j = 0; j < NUM_INPUTS; j++) {
-                let line = document.getElementById(`line-in-${i}-${j}`);
-                // Update line thickness based on new weight
-                let newWeight = Math.abs(nn.weights[i][j]);
-                line.style.strokeWidth = Math.max(0.5, newWeight * 2) + 'px';
+        // Backward flow visual
+        for (let i = 0; i < NUM_INPUTS; i++) {
+            document.getElementById(`line-in-${i}`).classList.remove('forward');
+            for (let j = 0; j < NUM_OUTPUTS; j++) {
+                document.getElementById(`line-out-${i}-${j}`).classList.remove('forward');
+                if (Math.abs(weightUpdates[i][j]) > 0.005) {
+                    document.getElementById(`line-out-${i}-${j}`).classList.add('backward');
+                }
             }
         }
 
         await new Promise(r => setTimeout(r, 1000));
+        statusText.innerText = "Updating Weights...";
 
-        // Cleanup animations
-        for (let i = 0; i < NUM_OUTPUTS; i++) {
-            document.getElementById(`line-out-${i}`).classList.remove('backward');
-            let outNode = document.getElementById(`output-${i}`);
-            outNode.style.backgroundColor = '';
-            outNode.style.borderColor = '';
-            outNode.classList.remove('active');
-            outNode.innerText = '0.00';
+        nn.applyUpdates(weightUpdates);
+        updateSlidersUI();
+        updateChart();
 
-            for (let j = 0; j < NUM_INPUTS; j++) {
-                document.getElementById(`line-in-${i}-${j}`).classList.remove('backward');
+        await new Promise(r => setTimeout(r, 1000));
+
+        // Cleanup
+        for (let i = 0; i < NUM_INPUTS; i++) {
+            for (let j = 0; j < NUM_OUTPUTS; j++) {
+                document.getElementById(`line-out-${i}-${j}`).classList.remove('backward');
             }
         }
+        for (let j = 0; j < NUM_OUTPUTS; j++) {
+            document.getElementById(`error-text-${j}`).classList.remove('show');
+            document.getElementById(`dial-bg-${j}`).style.background = 'conic-gradient(#555 0%, #333 0%)';
+            document.getElementById(`dial-bg-${j}`).classList.remove('active');
+            document.getElementById(`dial-val-${j}`).innerText = '0.00';
+        }
 
-        statusText.innerText = "Training Step Complete. Ready for next Forward Pass.";
-        btnForward.disabled = false;
+        statusText.innerText = `Step ${stepCount} Complete. Ready for next step.`;
+        btnTrain.disabled = false;
         btnReset.disabled = false;
     }
 
-    // --- 4. Event Listeners ---
+    // --- 5. Event Listeners ---
 
-    btnForward.addEventListener('click', runForwardPass);
-    btnBackprop.addEventListener('click', runBackprop);
+    btnInit.addEventListener('click', initializeNetwork);
+    btnTrain.addEventListener('click', runTrainStep);
 
     btnReset.addEventListener('click', () => {
         nn = new NeuralNetwork(NUM_INPUTS, NUM_OUTPUTS);
+        inputHistory = [];
         currentInputs = [];
-        btnBackprop.disabled = true;
-        btnForward.disabled = false;
-        statusText.innerText = "Network Reset. Click 'Forward Pass' to start.";
+        currentTargets = [];
+        isInitialized = false;
+        stepCount = 0;
+
+        btnInit.disabled = false;
+        btnTrain.disabled = true;
+        statusText.innerText = "Network Reset. Click 'Initialize Weights' to start.";
         setupUI();
     });
 
-    // Initialize
+    // Run startup layout
     setupUI();
 });
