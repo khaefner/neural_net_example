@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Neural Network Visualization</title>
+    <link rel="stylesheet" href="style.css">
+    <!-- Chart.js for Loss Graph -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    <div class="app-container">
+        <div class="header">
+            <h1>Feed-Forward & Backpropagation Visualization</h1>
+            <div class="controls">
+                <button id="btn-init">Initialize Weights</button>
+                <button id="btn-train-step" disabled>Train Step</button>
+                <button id="btn-autoplay" disabled>Auto Play</button>
+                <label for="delay-input" style="color: #bbb; font-size: 14px;">Delay (ms):</label>
+                <input type="number" id="delay-input" value="1000" min="0" step="100" style="width: 70px; padding: 5px; border-radius: 5px; border: 1px solid #555; background: #333; color: #fff;">
+                <button id="btn-reset">Reset</button>
+                <div class="status-panel">Status: <span id="status-text">Click 'Initialize Weights' to begin.</span></div>
+            </div>
+        </div>
+
+        <div class="main-content">
+            <div class="network-container" id="network-container">
+                <!-- Inputs Queue (1 current + 3 history) -->
+                <div class="layer input-queue-layer" id="input-queue-layer">
+                    <div class="layer-title">Inputs (History -> Current)</div>
+                    <div class="input-queue" id="input-queue">
+                        <!-- JS will generate 4 columns (history 3, 2, 1, current) of 16 inputs -->
+                    </div>
+                </div>
+
+                <!-- Connections from Current Input to Weights -->
+                <svg class="connections-svg" id="connections-svg"></svg>
+
+                <!-- Weights Layer (16 rows, 4 horizontal sliders each) -->
+                <div class="layer weights-layer" id="weights-layer">
+                    <div class="layer-title">Weights (16 In x 4 Out)</div>
+                    <div class="sliders-container" id="sliders-container">
+                        <!-- JS will generate 16 rows -->
+                    </div>
+                </div>
+
+                <!-- Connections from Weights to Outputs -->
+                <svg class="connections-svg-out" id="connections-svg-out"></svg>
+
+                <!-- Output Layer (4 nodes) -->
+                <div class="layer output-layer" id="output-layer">
+                    <div class="layer-title">Outputs & Targets</div>
+                    <div class="output-nodes" id="output-nodes">
+                        <!-- JS will generate 4 outputs with target tracks and ReLU dials -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Loss Graph -->
+            <div class="side-panel">
+                <div class="chart-box">
+                    <h3>Loss (MSE) Over Time</h3>
+                    <canvas id="lossChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
