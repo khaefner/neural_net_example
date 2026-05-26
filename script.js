@@ -197,6 +197,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 let valText = document.createElement('div');
                 valText.className = 'slider-value-text';
                 valText.id = `slider-val-${i}-${j}`;
+                valText.textContent = "0.00";
 
                 track.appendChild(fill);
                 track.appendChild(thumb);
@@ -400,8 +401,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 let valText = document.getElementById(`slider-val-${i}-${j}`);
                 valText.innerText = weight.toFixed(2);
-                valText.style.left = `${pct}%`;
 
+                if (weight >= 0) {
+                     valText.style.left = '5px';
+                     valText.style.right = 'auto';
+                } else {
+                     valText.style.right = '5px';
+                     valText.style.left = 'auto';
+                }
                 let line = document.getElementById(`line-out-${i}-${j}`);
                 if (line) {
                     line.style.strokeWidth = Math.max(0.5, Math.abs(weight) * 2) + 'px';
