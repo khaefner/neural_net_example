@@ -411,6 +411,7 @@ button#btn-autoplay.active-play:hover {
 
 /* Side Panel (Chart) */
 .side-panel {
+    max-height: 800px;
     flex: 1;
     display: flex;
     flex-direction: column;
@@ -437,3 +438,4 @@ button#btn-autoplay.active-play:hover {
 .chart-box canvas {
     flex: 1; /* Stretch canvas container to fill remaining space */
 }
+#output-layer { max-height: 800px; }
